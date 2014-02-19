@@ -22,5 +22,6 @@ extern NSString * const PurchaseManagerFailedNotification;
 - (void)purchaseFullVersion;
 - (void)restorePurchases;
 - (BOOL)isFullVersionPurchased;
+- (NSString *)getPriceForFullVersion;
 
 @end

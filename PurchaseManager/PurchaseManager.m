@@ -45,6 +45,15 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
         NSLog(@"Product description: %@" , self.fullVersionProduct.localizedDescription);
         NSLog(@"Product price: %@" , self.fullVersionProduct.price);
         NSLog(@"Product id: %@" , self.fullVersionProduct.productIdentifier);
+        
+        NSNumberFormatter *numberFormatter = [[NSNumberFormatter alloc] init];
+        [numberFormatter setFormatterBehavior:NSNumberFormatterBehavior10_4];
+        [numberFormatter setNumberStyle:NSNumberFormatterCurrencyStyle];
+        [numberFormatter setLocale:self.fullVersionProduct.priceLocale];
+        NSString *formattedPrice = [numberFormatter stringFromNumber:self.fullVersionProduct.price];
+        
+        NSLog(@"Product localized price: %@", formattedPrice);
+        [[NSUserDefaults standardUserDefaults] setValue:formattedPrice forKey:@"LoalizedPriceForFullVersion"];
     }
     
     for (NSString *invalidProductId in response.invalidProductIdentifiers) {
@@ -80,19 +89,21 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
         return NO;
 }
 
+- (NSString *)getPriceForFullVersion {
+    NSString *result = [[NSUserDefaults standardUserDefaults] stringForKey:@"LoalizedPriceForFullVersion"];
+    if (!result)
+        result = @"";
+    return [NSString stringWithFormat:@"КУПИТЬ ЗА %@", [result uppercaseString]];
+}
+
 - (void)recordTransaction:(SKPaymentTransaction *)transaction {
     if ([transaction.payment.productIdentifier isEqualToString:INAPP_PURCHASE_ID])
-    {
         [[NSUserDefaults standardUserDefaults] setValue:transaction.transactionReceipt forKey:@"fullVersionTransactionReceipt"];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-    }
 }
 
 - (void)provideContent:(NSString *)productId {
-    if ([productId isEqualToString:INAPP_PURCHASE_ID]) {
+    if ([productId isEqualToString:INAPP_PURCHASE_ID])
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isFullVersionPurchased"];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-    }
 }
 
 - (void)finishTransaction:(SKPaymentTransaction *)transaction wasSuccessful:(BOOL)wasSuccessful {
@@ -105,14 +116,14 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
 }
 
 - (void)completeTransaction:(SKPaymentTransaction *)transaction {
-    [self recordTransaction:transaction];
     [self provideContent:transaction.payment.productIdentifier];
+    [self recordTransaction:transaction];
     [self finishTransaction:transaction wasSuccessful:YES];
 }
 
 - (void)restoreTransaction:(SKPaymentTransaction *)transaction {
-    [self recordTransaction:transaction.originalTransaction];
     [self provideContent:transaction.originalTransaction.payment.productIdentifier];
+    [self recordTransaction:transaction.originalTransaction];
     [self finishTransaction:transaction wasSuccessful:YES];
 }
 
