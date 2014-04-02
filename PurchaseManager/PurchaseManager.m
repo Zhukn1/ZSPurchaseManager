@@ -7,12 +7,12 @@
 //
 
 #import "PurchaseManager.h"
-#import "SKProduct+ZSAdditions.h"
 
-#define INAPP_PURCHASE_ID @"PLACE IN-APP PURCHASE ID HERE"
+#define INAPP_PURCHASE_ID @"fullVersion"
 
 NSString * const PurchaseManagerSuccessNotification = @"PurchaseManagerSuccesfullyPurchased";
 NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhilePurchasing";
+NSString * const PurchaseManagerCanceledNotification = @"PurchaseManagerCanceledNotification";
 
 @interface PurchaseManager ()
 
@@ -46,14 +46,8 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
         NSLog(@"Product price: %@" , self.fullVersionProduct.price);
         NSLog(@"Product id: %@" , self.fullVersionProduct.productIdentifier);
         
-        NSNumberFormatter *numberFormatter = [[NSNumberFormatter alloc] init];
-        [numberFormatter setFormatterBehavior:NSNumberFormatterBehavior10_4];
-        [numberFormatter setNumberStyle:NSNumberFormatterCurrencyStyle];
-        [numberFormatter setLocale:self.fullVersionProduct.priceLocale];
-        NSString *formattedPrice = [numberFormatter stringFromNumber:self.fullVersionProduct.price];
-        
-        NSLog(@"Product localized price: %@", formattedPrice);
-        [[NSUserDefaults standardUserDefaults] setValue:formattedPrice forKey:@"LoalizedPriceForFullVersion"];
+        NSLog(@"Product localized price: %@", self.fullVersionProduct.localizedPrice);
+        [[NSUserDefaults standardUserDefaults] setValue:[self.fullVersionProduct.localizedPrice stringByReplacingOccurrencesOfString:@",00" withString:@""] forKey:@"LoalizedPriceForFullVersion"];
     }
     
     for (NSString *invalidProductId in response.invalidProductIdentifiers) {
@@ -83,22 +77,22 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
 
 - (BOOL)isFullVersionPurchased {
     BOOL result = [[NSUserDefaults standardUserDefaults] boolForKey:@"isFullVersionPurchased"];
-    if (result)
-        return result;
-    else
-        return NO;
+    if (!result)
+        result = NO;
+    return result;
 }
 
 - (NSString *)getPriceForFullVersion {
-    NSString *result = [[NSUserDefaults standardUserDefaults] stringForKey:@"LoalizedPriceForFullVersion"];
-    if (!result)
-        result = @"";
-    return [NSString stringWithFormat:@"КУПИТЬ ЗА %@", [result uppercaseString]];
+    NSString *price = [[NSUserDefaults standardUserDefaults] stringForKey:@"LoalizedPriceForFullVersion"];
+    NSString *result = @"КУПИТЬ";
+    if (price)
+        result = [result stringByAppendingString:[NSString stringWithFormat:@" ЗА %@", [price uppercaseString]]];
+    return result;
 }
 
 - (void)recordTransaction:(SKPaymentTransaction *)transaction {
     if ([transaction.payment.productIdentifier isEqualToString:INAPP_PURCHASE_ID])
-        [[NSUserDefaults standardUserDefaults] setValue:transaction.transactionReceipt forKey:@"fullVersionTransactionReceipt"];
+        [[NSUserDefaults standardUserDefaults] setValue:[NSData dataWithContentsOfURL:[[NSBundle mainBundle] appStoreReceiptURL]] forKey:@"fullVersionTransactionReceipt"];
 }
 
 - (void)provideContent:(NSString *)productId {
@@ -130,12 +124,14 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
 - (void)failedTransaction:(SKPaymentTransaction *)transaction {
     if (transaction.error.code != SKErrorPaymentCancelled)
         [self finishTransaction:transaction wasSuccessful:NO];
-    else
+    else {
         [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+        [[NSNotificationCenter defaultCenter] postNotificationName:PurchaseManagerCanceledNotification object:self];
+    }
+    
 }
 
-- (void)paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray *)transactions
-{
+- (void)paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray *)transactions {
     for (SKPaymentTransaction *transaction in transactions)
     {
         switch (transaction.transactionState)
@@ -146,6 +142,10 @@ NSString * const PurchaseManagerFailedNotification = @"PurchaseManagerErrorWhile
             default: break;
         }
     }
+}
+
+- (void)paymentQueue:(SKPaymentQueue *)queue restoreCompletedTransactionsFailedWithError:(NSError *)error {
+    [[NSNotificationCenter defaultCenter] postNotificationName:PurchaseManagerCanceledNotification object:self];
 }
 
 @end

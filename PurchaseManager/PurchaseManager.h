@@ -11,6 +11,7 @@
 
 extern NSString * const PurchaseManagerSuccessNotification;
 extern NSString * const PurchaseManagerFailedNotification;
+extern NSString * const PurchaseManagerCanceledNotification;
 
 @interface PurchaseManager : NSObject <SKProductsRequestDelegate, SKPaymentTransactionObserver>
 
